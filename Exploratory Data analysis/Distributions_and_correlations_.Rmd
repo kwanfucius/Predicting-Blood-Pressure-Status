@@ -1,0 +1,238 @@
+---
+title: "Team_project"
+author: "Team25"
+date: "10/28/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(corrplot)
+library(ggplot2)
+library(caret)
+library(MASS)
+```
+
+## Import Data
+
+```{r data}
+data1 = read.csv("demographic.csv")
+data2 = read.csv("examination.csv")
+data3 = read.csv("questionnaire.csv")
+
+alldata = inner_join(data1, data2, "SEQN")
+alldata = inner_join(alldata, data3, "SEQN")
+
+
+```
+
+## Data Clean
+
+```{r clean}
+#filter for only records with completed tests
+dataCleaned <- subset(alldata, alldata$PEASCST1==1)
+
+# Add average Systolic: Blood pressure
+dataCleaned$avgBPXSY = rowMeans(dataCleaned[,c("BPXSY1", "BPXSY2", "BPXSY3")], na.rm=TRUE)
+
+# Add average Diastolic: Blood pressure
+dataCleaned$avgBPXDI = rowMeans(dataCleaned[,c("BPXDI1", "BPXDI2", "BPXDI3")], na.rm=TRUE)
+
+dataCleaned = dataCleaned[dataCleaned$avgBPXDI != 0,]
+```
+
+
+## Find out variables with na values less than 2000
+```{r}
+a = data.frame(count = colSums(is.na(dataCleaned)))
+a$name = rownames(a)
+a[a$count < 2000,]
+
+```
+
+
+### Distribution of blood pressure measurements
+```{r distribution}
+ggplot(data = dataCleaned, aes(avgBPXSY), main = "Systolic: Blood pressure") + 
+  geom_histogram()
+ggplot(data = dataCleaned) + 
+  geom_qq(aes(sample = avgBPXSY)) + 
+  geom_qq_line(aes(sample = avgBPXSY))
+
+
+ggplot(data = dataCleaned, aes(avgBPXDI), main = "Systolic: Blood pressure") + 
+  geom_histogram()
+ggplot(data = dataCleaned) + 
+  geom_qq(aes(sample = avgBPXDI)) + 
+  geom_qq_line(aes(sample = avgBPXDI))
+
+# The distribution of both measurements are skewed
+# Need log transformation
+
+dataCleaned$log_avgBPXSY = log(dataCleaned$avgBPXSY)
+dataCleaned$log_avgBPXDI = log(dataCleaned$avgBPXDI)
+
+# New distribution
+ggplot(data = dataCleaned, aes(log_avgBPXSY), main = "Log of Systolic: Blood pressure") + 
+  geom_histogram()
+ggplot(data = dataCleaned) + 
+  geom_qq(aes(sample = log_avgBPXSY)) + 
+  geom_qq_line(aes(sample = log_avgBPXSY))
+
+
+
+ggplot(data = dataCleaned, aes(log_avgBPXDI),main = "Log of Diastolic: Blood pressure") + 
+  geom_histogram()
+ggplot(data = dataCleaned) + 
+  geom_qq(aes(sample = log_avgBPXDI)) + 
+  geom_qq_line(aes(sample = log_avgBPXDI))
+
+```
+
+
+## Xinru's Pick for variables
+
+```{r interest_variables}
+data = data.frame(log_avgsystolic = dataCleaned$log_avgBPXSY, log_avgdiastolic = dataCleaned$log_avgBPXDI,
+                  weight = dataCleaned$BMXWT, income = dataCleaned$INDFMPIR, height = dataCleaned$BMXHT,
+                  age = dataCleaned$RIDAGEYR, restaurant_7days = dataCleaned$SMQ860, 
+                  teeth_health = dataCleaned$OHQ845, overall_health = dataCleaned$HUQ010,
+                  carryout_money = dataCleaned$CBD130, eatout_money = dataCleaned$CBD120)
+
+# filter meaningless value like 777777 and 999999 for money spending, 7,9 for rate, and all missing values
+data = na.omit(data)
+data = data[!(data$carryout_money %in% c(777777,999999) | data$eatout_money %in% c(777777,999999)
+                    | data$restaurant_7days == 9 | data$teeth_health == 9
+                    | data$overall_health %in% c(7,9)),]
+```
+
+## Correlation Matrix
+```{r matrix}
+corr = cor(data)
+corrplot(corr, method = "circle")
+
+# From the correlation matrix, we can see only weight, height, age, teeth_health and overall health has high correlation with the blood pressure (for both measurement)
+
+filter_data = data %>% select(log_avgsystolic, log_avgdiastolic, weight, height, age, teeth_health, overall_health)
+filter_data$teeth_health = as.factor(filter_data$teeth_health)
+filter_data$overall_health = as.factor(filter_data$overall_health)
+```
+
+
+
+### Plots
+
+# weight
+```{r weight}
+par(mfrow=c(2,1))
+
+ggplot(data = filter_data, aes(x = weight, y = log_avgsystolic)) +
+  geom_point() +
+  geom_smooth(method = lm) + 
+  labs(title = "Weight vs Log_avgsystolic")
+
+
+ggplot(data = filter_data, aes(x = weight, y = log_avgdiastolic)) +
+  geom_point() +
+  geom_smooth(method = lm) + 
+  labs(title = "Weight vs Log_avgdiastolic")
+```
+
+
+# height
+```{r height}
+ggplot(data = filter_data, aes(x = height, y = log_avgsystolic)) +
+  geom_point() +
+  geom_smooth(method = lm) + 
+  labs(title = "Height vs Log_avgsystolic")
+
+
+
+ggplot(data = filter_data, aes(x = height, y = log_avgdiastolic)) +
+  geom_point() +
+  geom_smooth(method = lm) + 
+  labs(title = "Height vs Log_avgdiastolic")
+```
+
+# age
+```{r age}
+ggplot(data = filter_data, aes(x = age, y = log_avgsystolic)) +
+  geom_point() +
+  geom_smooth() + 
+  labs(title = "Age vs Log_avgsystolic")
+
+
+
+ggplot(data = filter_data, aes(x = age, y = log_avgdiastolic)) +
+  geom_point() +
+  geom_smooth() + 
+  labs(title = "Age vs Log_avgdiastolic")
+
+
+ggplot(data = filter_data, aes(x = age*age, y = log_avgdiastolic)) +
+  geom_point() +
+  geom_smooth() + 
+  labs(title = "Age^2 vs Log_avgdiastolic")
+```
+
+# teeth_health
+```{r teeth}
+ggplot(data = filter_data, aes(x = teeth_health, y = log_avgsystolic)) +
+  geom_boxplot(aes(fill=teeth_health))+ 
+  labs(title = "Boxplot of Teeth_health vs Log_avgsystolic")
+
+
+ggplot(data = filter_data, aes(x = teeth_health, y = log_avgdiastolic)) +
+  geom_boxplot(aes(fill=teeth_health))+ 
+  labs(title = "Boxplot of Teeth_health vs Log_avgdiastolic")
+```
+
+
+# overall_health
+```{r overall}
+ggplot(data = filter_data, aes(x = overall_health, y = log_avgsystolic)) +
+  geom_boxplot(aes(fill=overall_health))+ 
+  labs(title = "Boxplot of Self_rate_Overall_health vs Log_avgsystolic")
+
+ggplot(data = filter_data, aes(x = overall_health, y = log_avgdiastolic)) +
+  geom_boxplot(aes(fill=overall_health))+ 
+  labs(title = "Boxplot of Self_rate_Overall_health vs Log_avgdiastolic")
+```
+
+## Interaction
+
+```{r interaction}
+#teeth_overall
+interaction.plot(filter_data$teeth_health, filter_data$overall_health, filter_data$log_avgsystolic,
+                 col = c("blue","red","black","green","orange"))
+
+
+
+```
+
+# Stepwise Model
+
+```{r stepwise}
+# Set seed for reproducibility
+set.seed(123)
+
+# Set up repeated k-fold cross-validation
+train_control = trainControl(method = "cv", number = 10)
+
+# Train the model
+model = train(log_avgsystolic ~ age + weight + height + teeth_health + overall_health, data = filter_data, 
+              method = "lmStepAIC", trControl = train_control)
+
+summary(model$finalModel)
+
+
+
+```
+
+
+
+
+
+

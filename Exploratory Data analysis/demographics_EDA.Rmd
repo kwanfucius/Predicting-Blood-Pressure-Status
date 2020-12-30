@@ -1,0 +1,465 @@
+---
+title: "EDA"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readr)
+library(Hmisc)
+library(ggpubr)
+library(MASS)
+library(scales)
+library(dplyr)
+library(corrplot)
+library(ggplot2)
+library(sqldf)
+```
+
+```{r}
+#import data
+demo <- read.csv("demographic.csv")
+quest <- read.csv("questionnaire.csv")
+exam <- read.csv("examination.csv")
+```
+
+```{r}
+#construct dataset
+data1 <- sqldf('SELECT * FROM demo INNER JOIN quest ON demo.SEQN = quest.SEQN INNER JOIN exam ON demo.SEQN = exam.SEQN')
+```
+
+
+```{r}
+#data cleaning
+dataCleaned<-subset(data1, data1$PEASCST1==1)
+```
+
+```{r}
+#target variable creation
+avgBPXSY <- rowMeans(cbind(dataCleaned$BPXSY1, dataCleaned$BPXSY2, dataCleaned$BPXSY3), na.rm = TRUE)
+dataCleaned <- cbind(dataCleaned, avgBPXSY)
+avgBPXDI <- rowMeans(cbind(dataCleaned$BPXDI1, dataCleaned$BPXDI2, dataCleaned$BPXDI3), na.rm = TRUE)
+dataCleaned <- cbind(dataCleaned, avgBPXDI)
+
+dataCleaned <- dataCleaned[dataCleaned$avgBPXDI != 0,]
+```
+
+```{r}
+a = data.frame(count = colSums(is.na(dataCleaned)))
+a$name = rownames(a)
+a <- a[a$count >7000,]
+```
+
+
+```{r}
+#correlation
+dataSelect <- dataCleaned
+dataSelect <- dataSelect[, -which(names(dataSelect) %in% a$name)]
+#531 total Columns
+```
+
+```{r}
+dataCleaned <- dataSelect
+```
+
+```{r}
+#change 1, 2, and 9 to yes, no, and unknown values
+dataCleaned$CSQ010[dataCleaned$CSQ010==1]<-"Yes"
+dataCleaned$CSQ010[dataCleaned$CSQ010==2]<-"No"
+dataCleaned$CSQ010[dataCleaned$CSQ010==9]<-"Don't Know"
+dataCleaned$CSQ010<-as.factor(dataCleaned$CSQ010)
+
+dataCleaned$CSQ080[dataCleaned$CSQ080==1]<-"Yes"
+dataCleaned$CSQ080[dataCleaned$CSQ080==2]<-"No"
+dataCleaned$CSQ080[dataCleaned$CSQ080==9]<-"Don't Know"
+dataCleaned$CSQ080<-as.factor(dataCleaned$CSQ080)
+
+dataCleaned$PUQ100[dataCleaned$PUQ100==1]<-"Yes"
+dataCleaned$PUQ100[dataCleaned$PUQ100==2]<-"No"
+dataCleaned$PUQ100[dataCleaned$PUQ100==9]<-"Don't Know"
+dataCleaned$PUQ100<-as.factor(dataCleaned$PUQ100)
+
+dataCleaned$PUQ110[dataCleaned$PUQ110==1]<-"Yes"
+dataCleaned$PUQ110[dataCleaned$PUQ110==2]<-"No"
+dataCleaned$PUQ110[dataCleaned$PUQ110==9]<-"Don't Know"
+dataCleaned$PUQ110<-as.factor(dataCleaned$PUQ110)
+
+#ALQ101: change 1, 2, and 9 to yes, no, and unknown values
+dataCleaned$ALQ101[dataCleaned$ALQ101==1]<-"Yes"
+dataCleaned$ALQ101[dataCleaned$ALQ101==2]<-"No"
+dataCleaned$ALQ101[dataCleaned$ALQ101==9]<-"Don't Know"
+dataCleaned$ALQ101<-as.factor(dataCleaned$ALQ101)
+
+#change 1 and 2 to yes and no values
+dataCleaned$SMDANY[dataCleaned$SMDANY==1]<-"Yes"
+dataCleaned$SMDANY[dataCleaned$SMDANY==2]<-"No"
+dataCleaned$SMDANY<-as.factor(dataCleaned$SMDANY)
+
+#DIQ050: now taking insulin
+dataCleaned$DIQ050[dataCleaned$DIQ050==1]<-"Yes"
+dataCleaned$DIQ050[dataCleaned$DIQ050==2]<-"No"
+dataCleaned$DIQ050[dataCleaned$DIQ050==9]<-"Don't Know"
+dataCleaned$DIQ050<-as.factor(dataCleaned$DIQ050)
+
+#HSQ500
+dataCleaned$HSQ500[dataCleaned$HSQ500==1]<-"Yes"
+dataCleaned$HSQ500[dataCleaned$HSQ500==2]<-"No"
+dataCleaned$HSQ500[dataCleaned$HSQ500==9]<-"Don't Know"
+dataCleaned$HSQ500[dataCleaned$HSQ500==7]<-"Refused"
+dataCleaned$HSQ500<-as.factor(dataCleaned$HSQ500)
+
+#HSQ510
+dataCleaned$HSQ510[dataCleaned$HSQ510==1]<-"Yes"
+dataCleaned$HSQ510[dataCleaned$HSQ510==2]<-"No"
+dataCleaned$HSQ510[dataCleaned$HSQ510==9]<-"Don't Know"
+dataCleaned$HSQ510[dataCleaned$HSQ510==7]<-"Refused"
+dataCleaned$HSQ510<-as.factor(dataCleaned$HSQ510)
+
+#HSQ520
+dataCleaned$HSQ520[dataCleaned$HSQ520==1]<-"Yes"
+dataCleaned$HSQ520[dataCleaned$HSQ520==2]<-"No"
+dataCleaned$HSQ520[dataCleaned$HSQ520==9]<-"Don't Know"
+dataCleaned$HSQ520[dataCleaned$HSQ520==7]<-"Refused"
+dataCleaned$HSQ520<-as.factor(dataCleaned$HSQ520)
+
+#DMDMARTL: Marital status
+dataCleaned$DMDMARTL[dataCleaned$DMDMARTL==1]<-"Married"
+dataCleaned$DMDMARTL[dataCleaned$DMDMARTL==2]<-"Widowed"
+dataCleaned$DMDMARTL[dataCleaned$DMDMARTL==3]<-"Divorced"
+dataCleaned$DMDMARTL[dataCleaned$DMDMARTL==4]<-"Separated"
+dataCleaned$DMDMARTL[dataCleaned$DMDMARTL==5]<-"Never Married"
+dataCleaned$DMDMARTL[dataCleaned$DMDMARTL==6]<-"Living with Partner"
+dataCleaned$DMDMARTL[dataCleaned$DMDMARTL==77]<-"Refused"
+dataCleaned$DMDMARTL[dataCleaned$DMDMARTL==99]<-"DON'T KNOW"
+dataCleaned$DMDMARTL<-as.factor(dataCleaned$DMDMARTL)
+
+#DMDEDUC2
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==0]<-"Never attend / Kindergarten only"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==1]<-"1st grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==2]<-"2nd grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==3]<-"3rd grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==4]<-"4th grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==5]<-"5th grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==6]<-"6th grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==7]<-"7th grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==8]<-"8th grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==9]<-"9th grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==10]<-"10th grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==11]<-"11th grade"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==12]<-"12th grade, no diploma"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==13]<-"High school graduate"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==14]<-"Ged or Equivalent"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==15]<-"Some college, no degree"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==16]<-"Associate degree: occupational, technical, or vocational program"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==17]<-"Associate degree: academic program"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==18]<-"Bachelor's degree"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==19]<-"Master's degree"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==20]<-"Professional school degress"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==21]<-"Doctoral degree"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==77]<-"Refused"
+dataCleaned$DMDEDUC2[dataCleaned$DMDEDUC2==99]<-"DON'T KNOW"
+dataCleaned$DMDEDUC2<-as.factor(dataCleaned$DMDEDUC2)
+```
+
+```{r}
+##ALQ101
+g1 <- ggplot(dataCleaned, aes(ALQ101)) + 
+  geom_bar(na.rm = TRUE) +
+  labs(title = "Histogram of ALQ101") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(ALQ101)) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of ALQ101")
+
+g3 <- ggplot(dataCleaned, aes(factor(ALQ101), avgBPXSY)) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of ALQ101 vs. avgBPXSY")
+
+g4 <- ggplot(dataCleaned, aes(factor(ALQ101), avgBPXDI)) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of ALQ101 vs. avgBPXDI")
+
+ggarrange(g1, g2, g3, g4)
+
+g3
+g4
+#do have difference but not obvious
+```
+
+```{r}
+outlier <- (999 == dataCleaned$SMD460 | 777 == dataCleaned$SMD460)
+dataCleaned <- dataCleaned[!outlier,]
+```
+
+```{r}
+##SMD460
+g1 <- ggplot(dataCleaned, aes(SMD460)) + 
+  geom_histogram(bins = 30, na.rm = TRUE) +
+  labs(title = "Histogram of SMD460") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(SMD460)) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of SMD460")
+g3 <- ggplot(dataCleaned, aes(factor(SMD460), avgBPXDI)) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of SMD460 vs. avgBPXDI")
+g4 <- ggplot(dataCleaned, aes(factor(SMD460), avgBPXSY)) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of SMD460 vs. avgBPXSY")
+ggarrange(g1, g2, g3, g4)
+g3
+g4
+#almost no difference
+```
+
+```{r}
+##SMDANY
+g1 <- ggplot(dataCleaned, aes(SMDANY)) + 
+  geom_bar(na.rm = TRUE) +
+  labs(title = "Histogram of SMDANY") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(SMDANY)) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of SMDANY")
+
+g3 <- ggplot(dataCleaned, aes(factor(SMDANY), avgBPXSY)) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of SMDANY vs. avgBPXSY")
+
+g4 <- ggplot(dataCleaned, aes(factor(SMDANY), avgBPXDI)) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of SMDANY vs. avgBPXDI")
+
+ggarrange(g1, g2)
+g3
+g4
+#almost no difference
+```
+
+
+```{r}
+#CBD090:About how much money was spent on nonfood items?
+g1 <- ggplot(dataCleaned, aes(CBD090)) + 
+  geom_histogram(na.rm = TRUE) +
+  labs(title = "Histogram ofCBD090") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+g2 <- ggplot(dataCleaned, aes(CBD090)) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of CBD090")
+
+g3 <- ggplot(dataCleaned, aes(CBD090, avgBPXSY)) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(na.rm = TRUE)
+  labs(title = "CBD090 vs. avgBPXSY")
+
+g4 <- ggplot(dataCleaned, aes(CBD090, avgBPXDI)) +
+  geom_point(na.rm = TRUE) + 
+  geom_smooth(na.rm = TRUE)+
+  labs(title = "CBD090 vs. avgBPXDI")
+
+ggarrange(g1, g2)
+g3
+g4
+#bad plot, strange may not use
+```
+
+```{r}
+#CSQ080
+g1 <- ggplot(dataCleaned, aes(CSQ080)) + 
+  geom_bar(na.rm = TRUE) +
+  labs(title = "Histogram of CSQ080") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(CSQ080)) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of CSQ080")
+
+ggarrange(g1, g2)
+```
+
+```{r}
+#PUQ100
+g1 <- ggplot(dataCleaned, aes(PUQ100)) + 
+  geom_bar(na.rm = TRUE) +
+  labs(title = "Histogram of PUQ100") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(PUQ100)) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of PUQ100")
+```
+
+```{r}
+#PUQ100: In the past 7 days, were any chemical products used in {your/his/her} home to control fleas, roaches, ants, termites, or other insects?
+g1 <- ggplot(dataCleaned, aes(factor(PUQ100), avgBPXSY, color = factor(PUQ100))) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of PUQ100 vs. avgBPXSY")
+
+g2 <- ggplot(dataCleaned, aes(factor(PUQ100), avgBPXDI, color = factor(PUQ100))) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of PUQ100 vs. avgBPXDI")
+
+ggarrange(g1, g2)
+#little difference in avgBPXSY
+```
+
+```{r}
+#PUQ110
+g1 <- ggplot(dataCleaned, aes(PUQ110)) + 
+  geom_bar(na.rm = TRUE) +
+  labs(title = "Histogram of PUQ110") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(PUQ110)) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of PUQ110")
+
+ggarrange(g1, g2)
+```
+
+```{r}
+#PUQ110: In the past 7 days, were any chemical products used in {your/his/her} lawn or garden to kill weeds?
+g1 <- ggplot(dataCleaned, aes(factor(PUQ110), avgBPXSY, color = factor(PUQ110))) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of PUQ110 vs. avgBPXSY")
+
+g2 <- ggplot(dataCleaned, aes(factor(PUQ110), avgBPXDI, color = factor(PUQ110))) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of PUQ110 vs. avgBPXDI")
+
+ggarrange(g1, g2)
+#little difference in avgBPXSY
+```
+
+```{r}
+#DIQ050: now taking insulin?
+g1 <- ggplot(dataCleaned, aes(DIQ050)) + 
+  geom_bar(na.rm = TRUE) +
+  labs(title = "Histogram of DIQ050") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(DIQ050)) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of DIQ050")
+g1
+g2
+```
+
+```{r}
+g1 <- ggplot(dataCleaned, aes(factor(DIQ050), avgBPXSY, color = factor(DIQ050))) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of DIQ050 vs. avgBPXSY")
+
+g2 <- ggplot(dataCleaned, aes(factor(DIQ050), avgBPXDI, color = factor(DIQ050))) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of DIQ050 vs. avgBPXDI")
+ggarrange(g1, g2)
+#obvious difference!
+```
+
+```{r}
+#HSQ500: Did {you/SP} have a head cold or chest cold that started during those 30 days?
+g1 <- ggplot(dataCleaned, aes(as.factor(HSQ500))) + 
+  geom_bar(na.rm = TRUE) +
+  labs(title = "Histogram of HSQ500") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(as.factor(HSQ500))) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of HSQ500")
+g1
+g2
+```
+
+```{r}
+g1 <- ggplot(dataCleaned, aes(factor(HSQ500), avgBPXSY, color = factor(HSQ500))) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of HSQ500 vs. avgBPXSY")
+
+g2 <- ggplot(dataCleaned, aes(factor(HSQ500), avgBPXDI, color = factor(HSQ500))) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of DIQ050 vs. avgBPXDI")
+g1
+g2
+#no obvious difference!
+```
+
+```{r}
+#HSQ510: Did {you/SP} have a stomach or intestinal illness with vomiting or diarrhea that started during those 30 days?
+g1 <- ggplot(dataCleaned, aes(HSQ510)) + 
+  geom_bar(na.rm = TRUE) +
+  labs(title = "Histogram of HSQ510") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(HSQ510)) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of HSQ510")
+g1
+g2
+```
+
+```{r}
+g1 <- ggplot(dataCleaned, aes(factor(HSQ510), avgBPXSY, color = factor(HSQ510))) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of HSQ510 vs. avgBPXSY")
+
+g2 <- ggplot(dataCleaned, aes(factor(HSQ510), avgBPXDI, color = factor(HSQ510))) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of HSQ510 vs. avgBPXDI")
+g1
+g2
+#no obvious difference!
+```
+
+```{r}
+#HSQ520: Did {you/SP} have flu, pneumonia, or ear infections that started during those 30 days?
+g1 <- ggplot(dataCleaned, aes(as.factor(HSQ520))) + 
+  geom_bar(na.rm = TRUE) +
+  labs(title = "Histogram of HSQ520") +
+  theme(plot.title = element_text(hjust = 0.5))
+g2 <- ggplot(dataCleaned, aes(as.factor(HSQ520))) +
+  geom_dotplot(na.rm = TRUE) +
+  labs(title = "Dotplot of HSQ520")
+g1
+g2
+```
+
+```{r}
+g1 <- ggplot(dataCleaned, aes(factor(HSQ520), avgBPXSY, color = factor(HSQ520))) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of HSQ520 vs. avgBPXSY")
+
+g2 <- ggplot(dataCleaned, aes(factor(HSQ520), avgBPXDI, color = factor(HSQ520))) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of HSQ520 vs. avgBPXDI")
+g1
+g2
+#little bit difference!
+```
+
+```{r}
+#DMDMARTL: Marital status
+g1 <- ggplot(dataCleaned, aes(factor(DMDMARTL), log(avgBPXSY), color = factor(DMDMARTL))) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of DMDMARTL vs. avgBPXSY")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+g2 <- ggplot(dataCleaned, aes(factor(DMDMARTL), log(avgBPXDI), color = factor(DMDMARTL))) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of DMDMARTL vs. avgBPXDI")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+g1
+g2
+#seems there is difference but need to know each number's meaning
+```
+
+```{r}
+#DMDEDUC3 & DMDEDUC2: What is the highest grade or level of school {you have/SP has} completed or the highest degree {you have/s/he has} received?
+g1 <- ggplot(dataCleaned, aes(factor(DMDEDUC2), log(avgBPXSY), color = factor(DMDEDUC2))) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(title = "Boxplot of DMDEDUC vs. avgBPXSY")
+
+g2 <- ggplot(dataCleaned, aes(factor(DMDEDUC2), log(avgBPXDI), color = factor(DMDEDUC2))) +
+  geom_boxplot(na.rm = TRUE) + 
+  labs(title = "Boxplot of DMDEDUC vs. avgBPXDI")
+g1
+g2
+#seems there is difference but need to know each number's meaning
+```
+

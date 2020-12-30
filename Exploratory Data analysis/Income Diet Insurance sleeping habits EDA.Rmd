@@ -1,0 +1,169 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+```{r}
+library(plyr)
+library("dplyr")
+library("cowplot")
+library(ggplot2)
+
+```
+
+```{r}
+#data cleaning
+data1 = read.csv("demographic.csv")
+data2 = read.csv("examination.csv")
+data3 = read.csv("questionnaire.csv")
+
+alldata = inner_join(data1, data2, "SEQN")
+alldata = inner_join(alldata, data3, "SEQN")
+
+
+#filter for only records with completed tests
+dataCleaned <- subset(alldata, alldata$PEASCST1==1)
+
+# Add average Systolic: Blood pressure
+dataCleaned$avgBPXSY = rowMeans(dataCleaned[,c("BPXSY1", "BPXSY2", "BPXSY3")], na.rm=TRUE)
+
+# Add average Diastolic: Blood pressure
+dataCleaned$avgBPXDI = rowMeans(dataCleaned[,c("BPXDI1", "BPXDI2", "BPXDI3")], na.rm=TRUE)
+
+dataCleaned = dataCleaned[dataCleaned$avgBPXDI != 0,]
+
+
+dataCleaned$log_avgBPXSY = log(dataCleaned$avgBPXSY)
+dataCleaned$log_avgBPXDI = log(dataCleaned$avgBPXDI)
+
+
+## Methods to find out variables with NA value < 2000
+a = data.frame(count = colSums(is.na(dataCleaned)))
+a$name = rownames(a)
+a[a$count <2000,]
+head(dataCleaned$CBQ505)
+head(dataCleaned$CBQ550)
+head(dataCleaned$DBD905)
+head(dataCleaned$SMQ710)
+head(dataCleaned$HIQ031A)
+head(dataCleaned$HIQ031AA)
+head(dataCleaned$IND235)
+head(dataCleaned$SLQ050)
+head(dataCleaned$SLQ060)
+```
+```{r}
+#interpretation of variables with implementation of survey responses
+df <- dataCleaned$CBQ505
+df[df==1] <- 'Yes'
+df[df==2] <- 'No'
+df[df==7] <- 'Refused'
+df[df==9] <- 'Do Not Know'
+
+
+dataCleaned$CBQ505 <- df
+df[df==1] <- 'Yes'
+df[df==2] <- 'No'
+df[df==7] <- 'Refused'
+df[df==9] <- 'Do Not Know'
+dataCleaned$CBQ550 <- df
+
+dataCleaned$DBD905 <- as.numeric(dataCleaned$DBD905)
+
+df <- dataCleaned$SMQ710
+df[df==7] <- 'Refused'
+df[df==9] <- 'Do Not Know'
+dataCleaned$SMQ710 <- df
+
+df <- dataCleaned$HIQ011
+df[df==1] <- 'Yes'
+df[df==2] <- 'No'
+dataCleaned$HIQ031A <- df
+
+df <- dataCleaned$IND235
+df[df==77] <- 'Refused'
+df[df==99] <- 'Do Not Know'
+dataCleaned$IND235 <- df
+
+
+head(dataCleaned$DBD905)
+head(dataCleaned)
+keep_cols <-c("CBQ505", "CBQ550", "DBD905", "SMD641","HIQ011","IND235", "avgBPXSY", "avgBPXDI", "SLD010H", "log_avgBPXSY", "log_avgBPXDI")
+myVars <- dataCleaned[keep_cols]
+head(myVars)
+```
+
+```{r}
+#EDA for household income "IND235"
+myVars$IND235 <- factor(myVars$IND235, levels = c('1','2','3','4','5','6','7','8','9','10','11','12'))
+revalue(myVars$IND235, c('1'='$0 - $399', 
+                         '2'='$400-799', 
+                         '3'='$800- $1249',
+                         '4'='$1250 - $1649',
+                         '5'='$1650 - $2099',
+                         '6'='$2100 - $2899',
+                         '7'='$2900 - $3749',
+                         '8'='$3750 - $4599',
+                         '9'='$4600 - $5399',
+                         '10'='$5400 - $6249',
+                         '11'='$6250 - %8399', 
+                         '12'='$8400 and over'))
+ggplot(myVars, aes(x=IND235, y=avgBPXSY, fill=IND235)) + geom_boxplot() + xlab("Income Level") + ylab("Systolic Blood Pressure") + theme(legend.position= "none")
+ggplot(myVars, aes(x=IND235, y=avgBPXDI, fill=IND235)) + geom_boxplot() + xlab("Income Level") + ylab("Diastolic Blood Pressure") + theme(legend.position= "none")
+```
+
+```{r}
+#EDA for fast food/pizza in last 12 months
+p1<-ggplot(myVars, aes(x=as.factor(CBQ505), y=avgBPXSY, fill=as.factor(CBQ505))) + geom_boxplot() + theme(legend.position= "none") + xlab("Fast Food/Pizza Last 12 months") + ylab("Systolic Blood Pressure")
+
+p2<-ggplot(myVars, aes(x=as.factor(CBQ505), y=avgBPXDI, fill=as.factor(CBQ505))) + geom_boxplot() + theme(legend.position= "none") + xlab("Fast Food/Pizza Last 12 months") + ylab("Diastolic Blood Pressure")
+
+#EDA for restaurant with waiter/waitress service
+p3<-ggplot(myVars, aes(x=as.factor(CBQ550), y=avgBPXSY, fill=as.factor(CBQ550))) + geom_boxplot() + theme(legend.position= "none") + xlab("Sit-down Restaurant Last 12 Months") + ylab("Systolic Blood Pressure")
+
+p4<-ggplot(myVars, aes(x=as.factor(CBQ550), y=avgBPXDI, fill=as.factor(CBQ550))) + geom_boxplot() + theme(legend.position= "none") + xlab("Sit-down Restaurant Last 12 Months") + ylab("Diastolic Blood Pressure")
+
+plot_grid(p1,p2,p3,p4)
+```
+```{r}
+#EDA for ready to eat meals last 30 days(DBD905)
+newdf <- myVars[myVars$DBD905 <= 180,]
+newdf
+max(newdf$DBD905,na.rm = TRUE)
+p1 <- ggplot(newdf, aes(x=DBD905, y=avgBPXDI, fill=DBD905)) + geom_point() + geom_smooth(method=lm) + theme(legend.position= "none") + xlab("Ready To Eat Meals Last Month") + ylab("Log Diastolic Blood Pressure")
+p2 <- ggplot(newdf, aes(x=DBD905, y=avgBPXSY, fill=DBD905)) + geom_point() + geom_smooth(method=lm) + theme(legend.position= "none") + xlab("Ready To Eat Meals Last Month") + ylab("Log Systolic Blood Pressure")
+plot_grid(p1,p2)
+```
+```{r}
+#EDA for SMD641 # days smoked in the last 30 days
+newdf <- myVars[myVars$SMD641 <= 180,]
+newdf
+
+p1 <- ggplot(newdf, aes(x=SMD641, y=avgBPXDI)) + geom_point() + geom_smooth(method=lm) + theme(legend.position= "none") + xlab("# Days Smoked in Last 30 Days") + ylab("Log Diastolic Blood Pressure")
+p2 <- ggplot(newdf, aes(x=SMD641, y=avgBPXSY, fill=DBD905)) + geom_point() + geom_smooth(method=lm) + theme(legend.position= "none") + xlab("# Days Smoked in Last 30 Days") + ylab("Log Systolic Blood Pressure")
+plot_grid(p1,p2)
+```
+```{r}
+#EDA for HIQ031A Are you covered by insurance?
+
+p1<-ggplot(myVars, aes(x=as.factor(HIQ011), y=avgBPXSY, fill=as.factor(HIQ011))) + geom_boxplot() + theme(legend.position= "none") + xlab("Covered by Health Insurance") + ylab("Log Systolic Blood Pressure") + scale_x_discrete(labels = c('Yes','No', 'Refused', 'Unknown'))
+
+p2<-ggplot(myVars, aes(x=as.factor(HIQ011), y=avgBPXDI, fill=as.factor(HIQ011))) + geom_boxplot() + theme(legend.position= "none") + xlab("Covered by Health Insurance") + ylab("Log Diastolic Blood Pressure") + scale_x_discrete(labels = c('Yes','No', 'Refused', 'Unknown'))
+plot_grid(p1,p2)
+```
+```{r}
+#EDA for SLD010H how many hours of sleep
+newDf <- myVars[myVars$SLD010H <= 12,]
+p1 <- ggplot(newDf, aes(x=as.factor(SLD010H), y=avgBPXDI, fill= as.factor(SLD010H))) + geom_boxplot() + geom_smooth(method=lm) + theme(legend.position= "none") + xlab("Hours of Sleep Per Night") + ylab("Diastolic Blood Pressure")
+p2 <- ggplot(newDf, aes(x=as.factor(SLD010H), y=avgBPXSY, fill= as.factor(SLD010H))) + geom_boxplot() + geom_smooth(method=lm) + theme(legend.position= "none") + xlab("Hours of Sleep Per Night") + ylab("Systolic Blood Pressure")
+plot_grid(p1,p2)
+```
+ 
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
