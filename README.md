@@ -9,4 +9,10 @@ In order to assist hospitals we attempt to create a model to identify the indivi
 * [National Healh and Nutrition Examination Survey (2013-2014)](https://www.kaggle.com/cdc/national-health-and-nutrition-examination-survey?select=diet.csv) - General data obtained through interview that include information regarding, demographics, socioeconomic status, diet, and physiological measurements, as well as laboratory tests.
 * [Data Source Key](https://wwwn.cdc.gov/Nchs/Nhanes/Search/DataPage.aspx?Component=Questionnaire&CycleBeginYear=2013) - A Key used to interpret variables of the datasource
 
-# Interesting Finds
+# Sample Interesting Finds
+![alt text] (https://github.com/kwanfucius/Predicting-Blood-Pressure-Status/blob/main/Images/Correlation%20Matrix.png)
+![alt text] (https://github.com/kwanfucius/Predicting-Blood-Pressure-Status/blob/main/Images/Education%20Level.png)
+![alt text] (https://github.com/kwanfucius/Predicting-Blood-Pressure-Status/blob/main/Images/Health%20Insurance.png)
+![alt text] (https://github.com/kwanfucius/Predicting-Blood-Pressure-Status/blob/main/Images/Income%20Level.png)
+![alt text] (https://github.com/kwanfucius/Predicting-Blood-Pressure-Status/blob/main/Images/Race.png)
+![alt text] (https://github.com/kwanfucius/Predicting-Blood-Pressure-Status/blob/main/Images/Smoking.png)
