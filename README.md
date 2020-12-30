@@ -1,4 +1,4 @@
-# Predicting-Blood-Pressure-Status
+# Predicting Blood Pressure Status
 Hypertension and hypotension both pose significant risks for much of the elderly population. There are often no symptoms for hypertension and hypotension, meaning such issues can often go undetected until it is too late. According to one study, less than 25% of all Americans have their hypertension under control. 
 
 A simple solution would be to have hospitals screen people regularly, but driving a long way to hospitals to measure blood pressure may be too inconvenient and complicated for many Americans. This issue is exacerbated under quarantine when most elderly citizens are already at ‘high-risk’.  Even if this population were able to make frequent visits to the hospital, hospitals are commonly understaffed and can’t feasibly screen every elderly individual. Although there are ‘at-home’ methods, not all households can afford the cost of a blood pressure monitor to measure at home.
