@@ -1,0 +1,288 @@
+---
+title: "Team project with overall variables"
+author: "Team25"
+date: "11/9/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(corrplot)
+library(ggplot2)
+library(caret)
+library(MASS)
+library(randomForest)
+library(glmnet)
+```
+
+## Import Data
+
+```{r data}
+data1 = read.csv("demographic.csv")
+data2 = read.csv("examination.csv")
+data3 = read.csv("questionnaire.csv")
+
+alldata = inner_join(data1, data2, "SEQN")
+alldata = inner_join(alldata, data3, "SEQN")
+
+```
+
+## Data Clean
+
+```{r clean}
+#filter for only records with completed tests
+dataCleaned <- subset(alldata, alldata$PEASCST1==1)
+
+# Add average Systolic: Blood pressure
+dataCleaned$avgBPXSY = rowMeans(dataCleaned[,c("BPXSY1", "BPXSY2", "BPXSY3")], na.rm=TRUE)
+
+# Add average Diastolic: Blood pressure
+dataCleaned$avgBPXDI = rowMeans(dataCleaned[,c("BPXDI1", "BPXDI2", "BPXDI3")], na.rm=TRUE)
+
+dataCleaned = dataCleaned[dataCleaned$avgBPXDI != 0,]
+
+dataCleaned$log_avgBPXSY = log(dataCleaned$avgBPXSY)
+dataCleaned$log_avgBPXDI = log(dataCleaned$avgBPXDI)
+```
+
+## Data with all variables
+```{r}
+data = data.frame(log_avgsystolic = dataCleaned$log_avgBPXSY, log_avgdiastolic = dataCleaned$log_avgBPXDI,
+                  weight = dataCleaned$BMXWT, height = dataCleaned$BMXHT,
+                  age = dataCleaned$RIDAGEYR, restaurant_7days = dataCleaned$SMQ860, 
+                  teeth_health = as.factor(dataCleaned$OHQ845), overall_health = as.factor(dataCleaned$HUQ010),
+                  diabetes = as.factor(dataCleaned$DIQ050), chest_pain = as.factor(dataCleaned$CDQ001),
+                  gender = as.factor(dataCleaned$RIAGENDR),
+                  bmi = dataCleaned$BMXBMI, waistsize = dataCleaned$BMXWAIST, 
+                  vigorous_week_binary = as.factor(dataCleaned$PAQ650),
+                  week_min10_travel = as.factor(dataCleaned$PAQ635),
+                  smoked_days_30 = dataCleaned$SMD641,
+                  citizen = as.factor(dataCleaned$DMDCITZN), race = as.factor(dataCleaned$RIDRETH1),
+                  marital = as.factor(dataCleaned$DMDMARTL), education = as.factor(dataCleaned$DMDEDUC2),
+                  health_insurance = as.factor(dataCleaned$HIQ011))
+
+data$normal = ifelse(data$log_avgsystolic > log(90) & data$log_avgsystolic < log(120) 
+                            &data$log_avgdiastolic > log(60) & data$log_avgdiastolic < log(80),
+                            "normal", "abnormal") %>% as.factor()
+
+## Direct Binary Response for filtered variables
+data_filter = data[ , !(colnames(data) %in% c("smoked_days_30", "chest_pain","log_avgsystolic", "log_avgdiastolic"))] %>% na.omit()
+set.seed(123)
+dt = sort(sample(nrow(data_filter), nrow(data_filter)*.7))
+train<-data_filter[dt,]
+test<-data_filter[-dt,]
+
+
+## Direct Binary Response for all variables
+data_all = data[ , !(colnames(data) %in% c("log_avgsystolic", "log_avgdiastolic"))] %>% na.omit()
+set.seed(123)
+dt1 = sort(sample(nrow(data_all), nrow(data_all)*.7))
+train1<-data_all[dt1,]
+test1<-data_all[-dt1,]
+
+```
+
+# Numeric prediction, including all 2-way interactions
+```{r}
+## Lasso for linear regression
+set.seed(123)
+newdata1 = data %>% na.omit()
+x_train <- data.matrix(newdata1[,4:ncol(newdata1)-1])
+y_train <- newdata1$log_avgdiastolic
+y_train1 = newdata1$log_avgsystolic
+
+lambdas <- 10^seq(2, -3, by = -.1)
+
+## Variables for systolic
+lasso_reg <- cv.glmnet(x_train, y_train1, alpha = 1, lambda = lambdas, standardize = TRUE, nfolds = 5)
+lambda_best <- lasso_reg$lambda.min
+lasso_model <- glmnet(x_train, y_train1, alpha = 1, lambda = lambda_best, standardize = TRUE)
+lasso_model$beta[,1]
+
+## Variables for diastolic
+
+lasso_reg <- cv.glmnet(x_train, y_train, alpha = 1, lambda = lambdas, standardize = TRUE, nfolds = 5)
+lambda_best <- lasso_reg$lambda.min
+lasso_model <- glmnet(x_train, y_train, alpha = 1, lambda = lambda_best, standardize = TRUE)
+lasso_model$beta[,1]
+
+
+
+
+## Blood Pressure Numeric Prediction for filtered variables from Lasso (Combine variables together)
+linear_data = data[ , (colnames(data) %in% c("log_avgsystolic","log_avgdiastolic","height",
+                                          "age","teeth_health", "diabetes",
+                                          "gender","vigorous_week_binary","health_insurance",
+                                          "week_min10_travel", "smoked_days_30","citizen","race"))] %>% na.omit()
+
+set.seed(123)
+dt_linear = sort(sample(nrow(linear_data), nrow(linear_data)*.7))
+linear_train = linear_data[dt_linear,]
+linear_test = linear_data[-dt_linear,]
+
+systolic = linear_train %>% subset(select = c("log_avgsystolic",
+                                          "age", "diabetes",
+                                          "gender","week_min10_travel","citizen","race","health_insurance"))
+diastolic = linear_train %>% subset(select = c("log_avgdiastolic","height",
+                                          "age","teeth_health",
+                                          "gender","vigorous_week_binary",
+                                          "week_min10_travel", "smoked_days_30","race"))
+
+### find 2-way interaction
+final_model1 = lm(data = systolic, log_avgsystolic ~ (.)^2)
+anova(final_model1)
+final_model1 = lm(data = systolic, log_avgsystolic ~ . + age:gender + age:health_insurance + 
+             diabetes:week_min10_travel)
+summary(final_model1)
+
+final_model2 = lm(data = diastolic, log_avgdiastolic ~ (.)^2)
+anova(final_model2)
+final_model2 = lm(data = diastolic, log_avgdiastolic ~ . + height:age + age:smoked_days_30 + 
+              gender:race)
+summary(final_model2)
+
+```
+
+
+## Random Forest
+```{r}
+set.seed(123)
+#https://www.edureka.co/blog/random-forest-classifier/#Creating%20a%20Random%20Forest
+model <- train(normal ~ ., data = train, # Use the train data frame as the training data
+               method = 'rf',# Use the 'random forest' algorithm
+               trControl = trainControl(method = 'cv', # Use cross-validation
+                                        number = 5) # Use 5 folds for cross-validation
+               )
+model
+model1 <- train(normal ~ ., data = train1, # Use the train data frame as the training data
+               method = 'rf',# Use the 'random forest' algorithm
+               trControl = trainControl(method = 'cv', # Use cross-validation
+                                        number = 5) # Use 5 folds for cross-validation
+               )
+model1
+```
+
+
+## Check Overall Prediction Accuracy
+```{r}
+## Random Forest models with filtered data
+pred = predict(model, newdata = test)
+cm = table(test$normal, pred)
+cm
+## Accuracy Rate
+(791+236) / nrow(test)
+## 0.672
+
+## False negative Rate = 0.588
+330 / (330+231)
+
+
+## Random Forest models with alldata
+pred1 = predict(model1, newdata = test1)
+cm1 = table(test1$normal, pred1)
+cm1
+## Accuracy Rate
+(134) / nrow(test1)
+## 0.728
+# but the testing data is much smaller. So instead we highly recommend to use another Random Forest model or 
+# the client should provide us more available data to keep training the model
+
+## False negative Rate = 1
+53 / 53
+
+
+## Linear Regression
+linear_test = linear_test[linear_test$citizen !=7,]
+pred2 = predict(final_model1, newdata = linear_test)
+pred3 = predict(final_model2, newdata = linear_test)
+
+linear_df = data.frame(prediction = rep(NA,nrow(linear_test)), normal = rep(NA,nrow(linear_test)))
+linear_df$prediction = ifelse(pred2 > log(90) & pred2 < log(120) 
+                            & pred3 > log(60) & pred3 < log(80),
+                            "normal", "abnormal") %>% as.factor()
+linear_df$normal = ifelse(linear_test$log_avgsystolic > log(90) & linear_test$log_avgsystolic < log(120) 
+                            & linear_test$log_avgdiastolic > log(60) & linear_test$log_avgdiastolic < log(80),
+                            "normal", "abnormal") %>% as.factor()
+cm2 = table(linear_df$normal, linear_df$prediction)
+cm2
+
+# Accuracy Rate: 0.5928
+(143 + 71) / nrow(linear_df)
+## False negative Rate = 0.454
+59 / (59+71)
+
+```
+
+
+
+
+## Lasso for logistic regression
+```{r}
+#lasso can't handle NA values, so we have to omit any row that has a single NA value this leaves us with only 611 rows
+# https://rstatisticsblog.com/data-science-in-action/machine-learning/lasso-regression/
+set.seed(123)
+newdata = data[,-c(1,2)] %>% na.omit()
+
+#we split the data into a matrix that incl
+x_train <- data.matrix(newdata[,1:ncol(newdata)-1])
+y_train <- newdata$normal
+
+lambdas <- 10^seq(2, -3, by = -.1)
+lasso_reg <- cv.glmnet(x_train, y_train, alpha = 1, lambda = lambdas, standardize = TRUE, nfolds = 5, family = "binomial")
+lambda_best <- lasso_reg$lambda.min 
+lambda_best
+lasso_model <- glmnet(x_train, y_train, alpha = 1, lambda = lambda_best, standardize = TRUE, family = "binomial")
+lasso_model$beta[,1]
+
+## For Logistic regression, lasso suggests that we should use weight, age, restaurant_7days, teeth_health,
+## overall_health, gender, race, health_insurance and probably their 2-way interaction terms if necessary.
+
+
+```
+
+## Amy's part
+```{r}
+logis_data = subset(data, select = c("weight","age","restaurant_7days","teeth_health","overall_health",
+                                     "gender","race","health_insurance","normal")) %>% na.omit()
+set.seed(123)
+dt_logis = sort(sample(nrow(logis_data), nrow(logis_data)*.7))
+logis_train = logis_data[dt_logis,]
+logis_test = logis_data[-dt_logis,]
+
+### Find significant 2-way interactions
+model4 <- glm(normal ~., data=logis_train, family = binomial)
+summary(model4)
+#AIC: 6448.8 #all variables
+model5 <- glm(normal ~ age+restaurant_7days+gender+race, data=logis_train, family=binomial)
+summary(model5)
+# AIC: 6441.1 #kept all visible singificant variables: age, restaurant_7days, gender, race
+#interaction
+model6 <- glm(normal ~ age+restaurant_7days+gender+race+age*restaurant_7days+age*gender+age*race+restaurant_7days*gender+restaurant_7days*race+gender*race, data=logis_train, family=binomial)
+summary(model6)
+#AIC: 6433.7 #added interaction between significant variables
+model7 <-glm(normal ~ age+restaurant_7days+gender+race+age*restaurant_7days+age*gender+age*race, data=logis_train, family=binomial)
+summary(model7)
+#AIC: 6422.3 #included just the interactions that seem significant - age and race, age and gender
+### Model with significant interactions
+model7 <-glm(normal ~ age+restaurant_7days+gender+race+age*restaurant_7days+age*gender+age*race, data=logis_train, family=binomial)
+summary(model7)
+#AIC: 6422.3 #included just the interactions that seem significant - age and race, age and gender
+
+### Prediction
+probabilities <- model7 %>% predict(logis_test, type = "response")
+head(probabilities)
+contrasts(logis_test$normal)
+predicted.classes <- ifelse(probabilities > 0.5, "normal", "abnormal")
+head(predicted.classes)
+
+### Accuracy Rate
+nrow(predicted.classes)
+nrow(logis_test)
+mean(predicted.classes == logis_test$normal)
+#with model 7 the prediction is .636, the other models have same or lower
+
+```
+
+

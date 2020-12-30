@@ -1,0 +1,288 @@
+---
+title: "Team project with overall variables"
+author: "Team25"
+date: "11/9/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(corrplot)
+library(ggplot2)
+library(caret)
+library(MASS)
+library(randomForest)
+library(glmnet)
+library(tree)
+library(e1071)
+```
+
+## Import Data
+
+```{r data}
+data1 = read.csv("demographic.csv")
+data2 = read.csv("examination.csv")
+data3 = read.csv("questionnaire.csv")
+alldata = inner_join(data1, data2, "SEQN")
+alldata = inner_join(alldata, data3, "SEQN")
+
+
+
+```
+
+## Data Clean
+
+```{r clean}
+#filter for only records with completed tests
+dataCleaned <- subset(alldata, alldata$PEASCST1==1)
+# Add average Systolic: Blood pressure
+dataCleaned$avgBPXSY = rowMeans(dataCleaned[,c("BPXSY1", "BPXSY2", "BPXSY3")], na.rm=TRUE)
+# Add average Diastolic: Blood pressure
+dataCleaned$avgBPXDI = rowMeans(dataCleaned[,c("BPXDI1", "BPXDI2", "BPXDI3")], na.rm=TRUE)
+dataCleaned = dataCleaned[dataCleaned$avgBPXDI != 0,]
+dataCleaned$log_avgBPXSY = log(dataCleaned$avgBPXSY)
+dataCleaned$log_avgBPXDI = log(dataCleaned$avgBPXDI)
+```
+
+## Data with all variables
+```{r}
+data = data.frame(log_avgsystolic = dataCleaned$log_avgBPXSY, log_avgdiastolic = dataCleaned$log_avgBPXDI,
+                  weight = dataCleaned$BMXWT, height = dataCleaned$BMXHT,
+                  age = dataCleaned$RIDAGEYR, restaurant_7days = dataCleaned$SMQ860, 
+                  teeth_health = as.factor(dataCleaned$OHQ845), overall_health = as.factor(dataCleaned$HUQ010),
+                  diabetes = as.factor(dataCleaned$DIQ050), chest_pain = as.factor(dataCleaned$CDQ001),
+                  gender = as.factor(dataCleaned$RIAGENDR),
+                  bmi = dataCleaned$BMXBMI, waistsize = dataCleaned$BMXWAIST, 
+                  vigorous_week_binary = as.factor(dataCleaned$PAQ650),
+                  week_min10_travel = as.factor(dataCleaned$PAQ635),
+                  smoked_days_30 = dataCleaned$SMD641,
+                  citizen = as.factor(dataCleaned$DMDCITZN), race = as.factor(dataCleaned$RIDRETH1),
+                  marital = as.factor(dataCleaned$DMDMARTL), education = as.factor(dataCleaned$DMDEDUC2),
+                  health_insurance = as.factor(dataCleaned$HIQ011))
+data$normal = ifelse(data$log_avgsystolic > log(90) & data$log_avgsystolic < log(120) 
+                            &data$log_avgdiastolic > log(60) & data$log_avgdiastolic < log(80),
+                            "normal", "abnormal") %>% as.factor()
+## Direct Binary Response for filtered variables
+data_filter = data[ , !(colnames(data) %in% c("smoked_days_30", "chest_pain","log_avgsystolic", "log_avgdiastolic"))] %>% na.omit()
+set.seed(123)
+dt = sort(sample(nrow(data_filter), nrow(data_filter)*.7))
+train<-data_filter[dt,]
+test<-data_filter[-dt,]
+## Direct Binary Response for all variables
+data_all = data[ , !(colnames(data) %in% c("log_avgsystolic", "log_avgdiastolic"))] %>% na.omit()
+set.seed(123)
+dt1 = sort(sample(nrow(data_all), nrow(data_all)*.7))
+train1<-data_all[dt1,]
+test1<-data_all[-dt1,]
+str(data_all)
+str(data_filter)
+```
+
+##Decision Tree
+```{r}
+##Decision tree model with filtereddata
+model.tree <- tree(normal~ ., data=train)
+plot(model.tree)
+text(model.tree, label = "yval")
+
+prob = predict(model.tree, newdata=test, type="vector")[,2]
+pred <- ifelse(prob > 0.5, "normal", "abnormal")
+cm = table(test$normal, pred)
+cm
+## Accuracy Rate
+(709 + 305) / nrow(test)
+## 0.6636126
+
+##False Negative
+FNR <- 1 - TPR
+FNR
+##True Positive Rate
+TPR <- 709 / (709 + 245)
+TPR
+# 0.7431866
+
+##False Positive Rate
+FPR <- 269/(269 + 305)
+FPR
+# 0.4686411
+
+
+##Decision tree with alldata
+model.tree1 <- tree(normal~ ., data=train1)
+plot(model.tree1)
+text(model.tree1, label = "yval")
+
+prob1 = predict(model.tree1, newdata=test1, type="vector")[,2]
+pred1 <- ifelse(prob1 > 0.5, "normal", "abnormal")
+cm1 = table(test1$normal, pred1)
+cm1
+## Accuracy Rate
+(121+9) / nrow(test1)
+## 0.7065217
+
+#False Negative Rate
+
+FNR1 <- 1-TPR1
+
+##True Positive Rate
+TPR1 <- 121 / (121+34)
+TPR1
+# 0.7806452
+
+##False Positive Rate
+FPR1 <- 20/(20 + 9)
+FPR1
+# 0.6896552
+```
+```{r}
+#Support Vector Machine for filtereddata
+model.svm <- svm(normal ~., data = train)
+print(model.svm)
+summary(model.svm)
+
+pred_svm <- predict(model.svm, newdata = test)
+cm2 <- table(test$normal, pred_svm)
+cm2
+
+#accurancy rate
+AR <- (879 + 150)/nrow(test)
+#0.6734293
+
+#False Negative Rate
+FNR2 <- 1-TPR2
+FNR2
+##True Positive Rate
+TPR2 <- 879 / (879 + 400)
+TPR2
+# 0.6872557
+
+##False Positive Rate
+FPR2 <- 99/(99+150)
+FPR2
+# 0.3975904
+
+Evaluation_matrix <- data.frame(cbind(AR, FNR2, TPR2, FPR2))
+names(Evaluation_matrix) <- c("Accuracy Rate", "FNR", "TPR", "FPR")
+Evaluation_matrix
+
+#Support Vector Machine for filtereddata
+model.svm1 <- svm(normal ~., data = train1)
+summary(model.svm1)
+
+pred_svm1 <- predict(model.svm1, newdata = test1)
+cm3 <- table(test1$normal, pred_svm1)
+cm3
+#accurancy rate
+AR2 <- (141)/nrow(test1)
+#0.7663043
+
+#False Negative Rate
+FNR3 <- 1-TPR3
+
+##True Positive Rate
+TPR3 <- 141 / (141 + 43)
+TPR3
+# 0.7663043
+
+##False Positive Rate
+FPR3 <- 0/(0)
+FPR3
+# NA
+
+Evaluation_matrix2 <- data.frame(cbind(AR2, FNR3, TPR3, FPR3))
+names(Evaluation_matrix2) <- c("Accuracy Rate", "FNR", "TPR", "FPR")
+Evaluation_matrix2
+beta <- t(model.svm$coefs) %*% model.svm$SV
+beta0 <- model.svm$rho
+beta
+beta0
+```
+##Using LASSO for factor selection
+```{r}
+## After Lasso from Stephan
+model.svm2 <- svm(normal ~ age + gender + week_min10_travel + citizen + race + health_insurance, data = train)
+summary(model.svm2)
+
+pred_svm2 <- predict(model.svm2, newdata = test)
+cm4 <- table(test$normal, pred_svm2)
+cm4
+#accurancy rate
+AR3 <- (858 + 175)/nrow(test)
+#0.6760471
+
+#FNR
+FNR4 <- 1-TPR4
+
+##True Positive Rate
+TPR4 <- 858 / (858 + 375)
+TPR4
+# 0.6958637
+
+##False Positive Rate
+FPR4 <- 120/(120+175)
+FPR4
+# 0.4067797
+
+Evaluation_matrix3 <- data.frame(cbind(AR3, FNR4, TPR4, FPR4))
+names(Evaluation_matrix3) <- c("Accuracy Rate", "FNR", "TPR", "FPR")
+Evaluation_matrix3
+
+#Support Vector Machine for filtereddata
+model.svm3 <- svm(normal ~age + gender + week_min10_travel + citizen + race + health_insurance, data = train1)
+summary(model.svm3)
+
+pred_svm3 <- predict(model.svm3, newdata = test1)
+cm5 <- table(test1$normal, pred_svm3)
+cm5
+#accurancy rate
+AR4 <- (141)/nrow(test1)
+#0.7663043
+
+#FNR
+FNR5 <- 1 - TPR5
+##True Positive Rate
+TPR5 <- 141 / (141 + 43)
+TPR5
+# 0.7663043
+
+##False Positive Rate
+FPR5 <- 0/(0)
+FPR5
+
+Evaluation_matrix4 <- data.frame(cbind(AR4, FNR5, TPR5, FPR5))
+names(Evaluation_matrix4) <- c("Accuracy Rate", "FNR", "TPR", "FPR")
+Evaluation_matrix4
+
+```
+
+
+## 10-fold Cross Validation
+```{r}
+#Natesh code
+set.seed(1)
+##Set the second part for testing (first for training)
+nfold <- 2
+n <- nrow(datafinal) # the number of observations
+### create a vector of fold memberships (random order)
+foldid <- rep(1:nfold,each=ceiling(n/nfold))[sample(1:n)]
+k <- 2
+### Set the other part for training (if not k)
+train <- which(foldid!=k) # train on all but fold `k'
+test  <- which(foldid==k) # test on fold k
+
+### Do not worry about the warning messages. 
+### These are minor numerical issues in this case.
+model1 <- lm(avgBPXDI ~ weight + height + age + restaurant_7days + teeth_health + overall_health + diabetes + gender + bmi + waistsize + vigorous_week_binary + week_min10_travel + citizen + race + marital + education + health_insurance,  data = datafinal, subset = train)
+pred_model1 <- predict(model1, newdata = datafinal[-train,])
+
+#Something happens for this one.
+#Error in model.frame.default(Terms, newdata, na.action = na.action, xlev = object$xlevels) : factor diabetes has new levels 9
+#No matter how to restruct model, there will always be some variables that have factors containing new levels.
+#Reasons:https://stackoverflow.com/questions/45784594/error-in-model-frame-defaultterms-newdata-na-action-na-action-xlev-objec
+#Therefore, I will try dropping all those 7, 9, 77, 99 etc. values since they just means patients refused to answer the question or don't know the answer.
+
+
+```
+
