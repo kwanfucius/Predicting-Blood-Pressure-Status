@@ -11,7 +11,7 @@ In order to assist hospitals we attempt to create a model to identify the indivi
 * Regression (Linear, Logistic, Lasso)
 * ANOVA
 * Random Forests
-* Cross Validation
+* 10-fold Cross Validation
 
 # Data Source and Resources
 * [National Healh and Nutrition Examination Survey (2013-2014)](https://www.kaggle.com/cdc/national-health-and-nutrition-examination-survey?select=diet.csv) - General data obtained through interview that include information regarding, demographics, socioeconomic status, diet, and physiological measurements, as well as laboratory tests.
